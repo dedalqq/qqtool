@@ -6,6 +6,13 @@
 
 `make`
 
+or
+
+```
+go get github.com/dedalqq/qqtool
+go build qqtool
+```
+
 ## Use
 
 * `qqtool host:port` - connect to TCP port and `host` (analog `telent host port` or `nc host:port`)
