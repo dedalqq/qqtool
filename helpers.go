@@ -7,13 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
 func bind(r io.Reader, w io.Writer, rw io.ReadWriter, f *os.File) {
-	var copy = func(dst io.Writer, src io.Reader, f *os.File, wg *sync.WaitGroup) (int64, error) {
-		defer wg.Done()
-		buf := make([]byte, 32*1024)
+	var copy = func(dst io.Writer, src io.Reader, f *os.File, ech chan error) int64 {
+		buf := make([]byte, 4*1024)
 		var written int64
 		for {
 			nr, er := src.Read(buf)
@@ -29,26 +27,29 @@ func bind(r io.Reader, w io.Writer, rw io.ReadWriter, f *os.File) {
 					written += int64(nw)
 				}
 				if ew != nil {
-					return written, ew
+					ech <- ew
+					return written
 				}
 				if nr != nw {
-					return written, errors.New("short write")
+					ech <- errors.New("short write")
+					return written
 				}
 			}
 			if er != nil {
 				if er == io.EOF {
-					return written, nil
+					ech <- nil
+					return written
 				}
-				return written, er
+				ech <- er
+				return written
 			}
 		}
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go copy(w, rw, f, &wg)
-	go copy(rw, r, f, &wg)
-	wg.Wait()
+	ech := make(chan error)
+	go copy(w, rw, f, ech)
+	go copy(rw, r, f, ech)
+	<-ech
 }
 
 func openNewFile(path string, v ...string) (*os.File, error) {
