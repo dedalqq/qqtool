@@ -18,7 +18,9 @@ go build qqtool
 * `qqtool host:port` - connect to TCP port and `host` (analog `telent host port` or `nc host:port`)
 * `qqtool -t host:port` - connect to TCP port and `host` with TLS
 * `qqtool -l :80` - run TCP server on port 80 (analog `nc -l -p 80` but not one-off)
-* `qqtool -l :443 -f host:port` - run TCP server on port 443 and forward incoming connection to `host` and `port`
+* `qqtool -l :443 -t -f host:port` - run TCP server on port 443 and forward incoming connection to `host` and `port`
+* `qqtool -s /tmp host:port` - connect to TCP port and host and save dump to file in `/tmp` folder
+* `qqtool -r host:port` - connect and retry connection after disconnecting
 
 ## Man
 
