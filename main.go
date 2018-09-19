@@ -1,28 +1,30 @@
 package main
 
 import (
-	"strings"
-	"sync"
-	"io"
-	"os"
-	"net"
-	"flag"
 	"crypto/tls"
+	"flag"
+	"io"
+	"net"
+	"os"
+	"strings"
 )
 
 var (
 	host string
 
-	listening string
-	forward string
-	useTLS bool
+	listening  string
+	forward    string
+	useTLS     bool
+	folderPath string
+	retry      bool
 )
-
 
 func init() {
 	flag.StringVar(&listening, "l", "", "Listening TCP port. Example: :80 or 0.0.0.0:80")
 	flag.StringVar(&forward, "f", "", "Forward incoming connection to host. (with -l)")
 	flag.BoolVar(&useTLS, "t", false, "Connect with TLS. (With -f or simple host connection)")
+	flag.StringVar(&folderPath, "s", "", "Path to folder for save data from incoming connections (with -l or simple host connection)")
+	flag.BoolVar(&retry, "r", false, "Repeat the connection after disconnecting (simple host connection)")
 
 	flag.Parse()
 
@@ -36,7 +38,7 @@ func makeTLS(conn net.Conn) (net.Conn, error) {
 	addr := conn.RemoteAddr()
 
 	c := tls.Client(conn, &tls.Config{
-		ServerName: strings.Split(addr.String(), ":")[0],
+		ServerName:         strings.Split(addr.String(), ":")[0],
 		InsecureSkipVerify: true,
 	})
 
@@ -45,20 +47,6 @@ func makeTLS(conn net.Conn) (net.Conn, error) {
 		return nil, err
 	}
 	return c, nil
-}
-
-func bind(a, b io.ReadWriter) {
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		io.Copy(a, b)
-		wg.Done()
-	}()
-	go func() {
-		io.Copy(b, a)
-		wg.Done()
-	}()
-	wg.Wait()
 }
 
 func listeningTCP(addr string) {
@@ -103,11 +91,21 @@ func listeningTCP(addr string) {
 						return
 					}
 				}
-
 				logSuccess()
 				defer c.Close()
-				
-				bind(c, conn)
+
+				var f *os.File
+				if folderPath != "" {
+					f, err = openNewFile(folderPath, conn.RemoteAddr().String())
+					if f != nil {
+						defer f.Close()
+					}
+					if err != nil {
+						logError(err)
+					}
+				}
+
+				bind(c, c, conn, f)
 				logInfo("Close connection from [%v]", conn.RemoteAddr())
 				return
 			}
@@ -118,15 +116,7 @@ func listeningTCP(addr string) {
 	}
 }
 
-func main() {
-
-	if listening != "" {
-		listeningTCP(listening)
-		return
-	}
-
-	logState("Connect to [%s]", host)
-
+func connectToHost(host string) {
 	conn, err := net.Dial("tcp", host)
 	if err != nil {
 		logError(err)
@@ -140,18 +130,37 @@ func main() {
 			return
 		}
 	}
-
 	logSuccess()
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		io.Copy(os.Stdout, conn)
-		wg.Done()
-	}()
-	go func() {
-		io.Copy(conn, os.Stdin)
-		wg.Done()
-	}()
-	wg.Wait()
+	var f *os.File
+	if folderPath != "" {
+		f, err = openNewFile(folderPath, conn.RemoteAddr().String())
+		if f != nil {
+			defer f.Close()
+		}
+		if err != nil {
+			logError(err)
+		}
+	}
+
+	bind(os.Stdin, os.Stdout, conn, f)
+	logInfo("Disconnect [%v]", conn.RemoteAddr())
+}
+
+func main() {
+
+	if listening != "" {
+		listeningTCP(listening)
+		return
+	}
+
+	logState("Connect to [%s]", host)
+	if retry {
+		for {
+			connectToHost(host)
+			logState("Reconnect to [%s]", host)
+		}
+	} else {
+		connectToHost(host)
+	}
 }

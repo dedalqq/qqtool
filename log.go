@@ -30,5 +30,7 @@ func logError(err error) {
 	if state {
 		fmt.Fprintf(os.Stderr, "[ error ] [%v]\n", err)
 		state = false
+	} else {
+		fmt.Fprintf(os.Stderr, "> error [%v]\n", err)
 	}
 }
