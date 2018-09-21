@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -19,6 +20,7 @@ var (
 	folderPath     string
 	retry          bool
 	fileServerPath string
+	execCommand    string
 )
 
 func init() {
@@ -28,6 +30,7 @@ func init() {
 	flag.StringVar(&folderPath, "s", "", "Path to folder for save data from incoming connections (with -l or simple host connection)")
 	flag.BoolVar(&retry, "r", false, "Repeat the connection after disconnecting (simple host connection)")
 	flag.StringVar(&fileServerPath, "F", "", "Run file server on path (with -l)")
+	flag.StringVar(&execCommand, "e", "", "Run command for incomming connections (with -l)")
 
 	flag.Parse()
 
@@ -50,6 +53,27 @@ func makeTLS(conn net.Conn) (net.Conn, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+func getFileForOut(folderPath, name string) (*os.File, error) {
+
+	// if folderPath == "stdout" {
+	// 	return os.Stdout, nil
+	// }
+
+	// if folderPath == "stderr" {
+	// 	return os.Stderr, nil
+	// }
+
+	if folderPath != "" {
+		f, err := openNewFile(folderPath, name)
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	}
+
+	return nil, nil
 }
 
 func listeningTCP(addr string) {
@@ -94,22 +118,59 @@ func listeningTCP(addr string) {
 						return
 					}
 				}
-				logSuccess()
 				defer c.Close()
 
-				var f *os.File
-				if folderPath != "" {
-					f, err = openNewFile(folderPath, conn.RemoteAddr().String())
-					if f != nil {
-						defer f.Close()
-					}
-					if err != nil {
-						logError(err)
-					}
+				f, err := getFileForOut(folderPath, conn.RemoteAddr().String())
+				if err != nil {
+					logError(err)
+					return
 				}
+
+				logSuccess()
 
 				bind(c, c, conn, f)
 				logInfo("Close connection from [%v]", conn.RemoteAddr())
+				return
+			}
+
+			if execCommand != "" {
+				logState("Run command [%s] for incoming connection [%s]", execCommand, conn.RemoteAddr())
+				cmd := exec.Command(execCommand)
+
+				stdin, err := cmd.StdinPipe()
+				if nil != err {
+					logError(err)
+					return
+				}
+
+				stdout, err := cmd.StdoutPipe()
+				if nil != err {
+					logError(err)
+					return
+				}
+
+				stderr, err := cmd.StderrPipe()
+				if nil != err {
+					logError(err)
+					return
+				}
+
+				err = cmd.Start()
+				if nil != err {
+					logError(err)
+					return
+				}
+
+				f, err := getFileForOut(folderPath, conn.RemoteAddr().String())
+				if err != nil {
+					logError(err)
+					return
+				}
+
+				logSuccess()
+
+				bind(io.MultiReader(stdout, stderr), stdin, conn, f)
+
 				return
 			}
 

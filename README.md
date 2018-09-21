@@ -22,6 +22,7 @@ go build qqtool
 * `qqtool -s /tmp host:port` - connect to TCP port and host and save dump to file in `/tmp` folder
 * `qqtool -r host:port` - connect and retry connection after disconnecting
 * `qqtool -l :80 -F /tmp` - run simple file server on port 80 and in `/tmp` dir
+* `qqtool -l :80 -e /bin/bash` - run server on 80 port and run `/bin/bash` for incomming connection (analog `nc -l -p 80 -e /bin/bash` but not one-off)
 
 ## Man
 
@@ -31,6 +32,8 @@ go build qqtool
 Usage of ./qqtool:
   -F string
         Run file server on path (with -l)
+  -e string
+        Run command for incomming connections (with -l)
   -f string
         Forward incoming connection to host. (with -l)
   -l string
