@@ -5,6 +5,7 @@ import (
 	"flag"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 )
@@ -12,11 +13,12 @@ import (
 var (
 	host string
 
-	listening  string
-	forward    string
-	useTLS     bool
-	folderPath string
-	retry      bool
+	listening      string
+	forward        string
+	useTLS         bool
+	folderPath     string
+	retry          bool
+	fileServerPath string
 )
 
 func init() {
@@ -25,6 +27,7 @@ func init() {
 	flag.BoolVar(&useTLS, "t", false, "Connect with TLS. (With -f or simple host connection)")
 	flag.StringVar(&folderPath, "s", "", "Path to folder for save data from incoming connections (with -l or simple host connection)")
 	flag.BoolVar(&retry, "r", false, "Repeat the connection after disconnecting (simple host connection)")
+	flag.StringVar(&fileServerPath, "F", "", "Run file server on path (with -l)")
 
 	flag.Parse()
 
@@ -147,9 +150,19 @@ func connectToHost(host string) {
 	logInfo("Disconnect [%v]", conn.RemoteAddr())
 }
 
+func runFileServer(host, path string) {
+	logInfo("Run file server on [%s] in dir: [%s]", host, path)
+	http.ListenAndServe(host, http.FileServer(http.Dir(path)))
+}
+
 func main() {
 
 	if listening != "" {
+		if fileServerPath != "" {
+			runFileServer(listening, fileServerPath)
+			return
+		}
+
 		listeningTCP(listening)
 		return
 	}
