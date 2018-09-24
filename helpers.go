@@ -1,13 +1,32 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+func getListener(addr string, useTLS bool) (net.Listener, error) {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if useTLS {
+		c, err := getTLSConfig()
+		if err != nil {
+			return nil, err
+		}
+		listener = tls.NewListener(listener, c)
+	}
+
+	return listener, nil
+}
 
 func bind(r io.Reader, w io.Writer, rw io.ReadWriter, f *os.File) {
 	var copy = func(dst io.Writer, src io.Reader, f *os.File, ech chan error) int64 {

@@ -79,7 +79,7 @@ func getFileForOut(folderPath, name string) (*os.File, error) {
 func listeningTCP(addr string) {
 	logState("Start listening TCP PORT [%v]", addr)
 
-	server, err := net.Listen("tcp", addr)
+	server, err := getListener(addr, useTLS)
 	if err != nil {
 		logError(err)
 		return
@@ -102,10 +102,6 @@ func listeningTCP(addr string) {
 
 		go func() {
 			defer conn.Close()
-
-			if useTLS {
-				conn = getTLSServerConn(conn)
-			}
 
 			if forward != "" {
 				logState("Forwarding incoming connection [%v] to [%v]", conn.RemoteAddr(), forward)
@@ -215,9 +211,21 @@ func connectToHost(host string) {
 	logInfo("Disconnect [%v]", conn.RemoteAddr())
 }
 
-func runFileServer(host, path string) {
-	logInfo("Run file server on [%s] in dir: [%s]", host, path)
-	http.ListenAndServe(host, http.FileServer(http.Dir(path)))
+func runFileServer(addr, path string) {
+	logInfo("Run file server on [%s] in dir: [%s]", addr, path)
+
+	listener, err := getListener(addr, useTLS)
+	if err != nil {
+		logError(err)
+		return
+	}
+
+	server := http.Server{
+		Addr:    host,
+		Handler: http.FileServer(http.Dir(path)),
+	}
+
+	server.Serve(listener)
 }
 
 func main() {

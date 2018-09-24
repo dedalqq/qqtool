@@ -7,20 +7,19 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
-	"net"
 	"time"
 )
 
-func getSerialNumber() *big.Int {
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
-	return serialNumber
-}
+func getTLSConfig() (*tls.Config, error) {
 
-func getTLSServerConn(c net.Conn) net.Conn {
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, err
+	}
 
 	template := x509.Certificate{
-		SerialNumber: getSerialNumber(),
+		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			Organization: []string{"qqtool"},
 		},
@@ -28,11 +27,17 @@ func getTLSServerConn(c net.Conn) net.Conn {
 		NotAfter:  time.Now().Add(10 * 365 * 24 * time.Hour),
 	}
 
-	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, err
+	}
 
-	derBytes, _ := x509.CreateCertificate(rand.Reader, &template, &template, priv.Public(), priv)
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, priv.Public(), priv)
+	if err != nil {
+		return nil, err
+	}
 
-	tlsConfig := &tls.Config{
+	return &tls.Config{
 		Certificates: []tls.Certificate{
 			{
 				PrivateKey:  priv,
@@ -40,9 +45,5 @@ func getTLSServerConn(c net.Conn) net.Conn {
 			},
 		},
 		InsecureSkipVerify: true,
-	}
-
-	c = tls.Server(c, tlsConfig)
-
-	return c
+	}, nil
 }
