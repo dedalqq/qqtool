@@ -103,6 +103,10 @@ func listeningTCP(addr string) {
 		go func() {
 			defer conn.Close()
 
+			if useTLS {
+				conn = getTLSServerConn(conn)
+			}
+
 			if forward != "" {
 				logState("Forwarding incoming connection [%v] to [%v]", conn.RemoteAddr(), forward)
 				c, err := net.Dial("tcp", forward)
