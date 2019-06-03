@@ -42,4 +42,5 @@ Usage of ./qqtool:
   -s string
         Path to folder for save data from incoming connections (with -l or simple host connection)
   -t    Connect with TLS. (With -f or simple host connection)
+  -v    Make the operation more talkative
 ```
