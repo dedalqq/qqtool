@@ -28,46 +28,49 @@ func getListener(addr string, useTLS bool) (net.Listener, error) {
 	return listener, nil
 }
 
-func bind(r io.Reader, w io.Writer, rw io.ReadWriter, f *os.File) {
-	var copy = func(dst io.Writer, src io.Reader, f *os.File, ech chan error) int64 {
-		buf := make([]byte, 4*1024)
-		var written int64
-		for {
-			nr, er := src.Read(buf)
-			if nr > 0 {
-				if f != nil {
-					_, ewf := f.Write(buf[0:nr])
-					if ewf != nil {
-						f = nil
-					}
-				}
-				nw, ew := dst.Write(buf[0:nr])
-				if nw > 0 {
-					written += int64(nw)
-				}
-				if ew != nil {
-					ech <- ew
-					return written
-				}
-				if nr != nw {
-					ech <- errors.New("short write")
-					return written
+func copy(dst io.Writer, src io.Reader, f *os.File, ech chan error, direction string) int64 {
+	buf := make([]byte, 4*1024)
+	var written int64
+	for {
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			if dmp != nil {
+				dmp.Write(buf[:nr], direction)
+			}
+			if f != nil {
+				_, ewf := f.Write(buf[:nr])
+				if ewf != nil {
+					f = nil
 				}
 			}
-			if er != nil {
-				if er == io.EOF {
-					ech <- nil
-					return written
-				}
-				ech <- er
+			nw, ew := dst.Write(buf[:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if ew != nil {
+				ech <- ew
+				return written
+			}
+			if nr != nw {
+				ech <- errors.New("short write")
 				return written
 			}
 		}
+		if er != nil {
+			if er == io.EOF {
+				ech <- nil
+				return written
+			}
+			ech <- er
+			return written
+		}
 	}
+}
 
+func bind(r io.Reader, w io.Writer, rw io.ReadWriter, f *os.File) {
 	ech := make(chan error)
-	go copy(w, rw, f, ech)
-	go copy(rw, r, f, ech)
+	go copy(w, rw, f, ech, "<<<")
+	go copy(rw, r, f, ech, ">>>")
 	<-ech
 }
 

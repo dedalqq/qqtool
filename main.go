@@ -21,6 +21,7 @@ var (
 	retry          bool
 	fileServerPath string
 	execCommand    string
+	verbose        bool
 )
 
 func init() {
@@ -31,6 +32,7 @@ func init() {
 	flag.BoolVar(&retry, "r", false, "Repeat the connection after disconnecting (simple host connection)")
 	flag.StringVar(&fileServerPath, "F", "", "Run file server on path (with -l)")
 	flag.StringVar(&execCommand, "e", "", "Run command for incomming connections (with -l)")
+	flag.BoolVar(&verbose, "v", false, "Make the operation more talkative")
 
 	flag.Parse()
 
@@ -57,11 +59,11 @@ func makeTLS(conn net.Conn) (net.Conn, error) {
 
 func getFileForOut(folderPath, name string) (*os.File, error) {
 
-	// if folderPath == "stdout" {
+	// if folderPath == ":stdout" {
 	// 	return os.Stdout, nil
 	// }
 
-	// if folderPath == "stderr" {
+	// if folderPath == ":stderr" {
 	// 	return os.Stderr, nil
 	// }
 
@@ -100,7 +102,7 @@ func listeningTCP(addr string) {
 			break
 		}
 
-		go func() {
+		go func(conn net.Conn) {
 			defer conn.Close()
 
 			if forward != "" {
@@ -176,7 +178,7 @@ func listeningTCP(addr string) {
 
 			logInfo("Accept new connection from [%v]", conn.RemoteAddr())
 			io.Copy(os.Stdout, conn)
-		}()
+		}(conn)
 	}
 }
 
@@ -229,6 +231,10 @@ func runFileServer(addr, path string) {
 }
 
 func main() {
+
+	if verbose {
+		dmp = newDumpler(os.Stderr)
+	}
 
 	if listening != "" {
 		if fileServerPath != "" {
