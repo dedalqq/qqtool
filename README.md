@@ -9,7 +9,7 @@
 or
 
 ```
-go get github.com/dedalqq/qqtool
+go get -u github.com/dedalqq/qqtool
 go build qqtool
 ```
 
